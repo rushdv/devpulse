@@ -1,129 +1,144 @@
-# DevPulse
+# DevPulse API
 
-A production-ready REST API for issue tracking in software teams. DevPulse provides user authentication with role-based access control and full CRUD operations for issues.
+> Internal tech issue & feature tracker for software teams — report bugs, suggest features, and coordinate resolutions.
+
+**Live URL:** `https://your-deployment-url.onrender.com`
+
+---
+
+## Features
+
+- User registration and login with JWT authentication
+- Role-based access control (`contributor` / `maintainer`)
+- Full CRUD for issues (bug reports and feature requests)
+- Filter issues by type and status; sort by newest or oldest
+- Reporter details included in issue responses (no SQL JOINs)
+- Centralized error handling and consistent JSON response format
+
+---
 
 ## Tech Stack
 
 | Layer | Technology |
 |---|---|
-| Runtime | Node.js |
-| Language | TypeScript 5 (strict mode) |
+| Runtime | Node.js 24 (LTS) |
+| Language | TypeScript 5 (strict mode, no `any`) |
 | Framework | Express.js 4 |
-| Database | PostgreSQL (raw SQL via `pg` driver) |
-| Authentication | JSON Web Tokens (`jsonwebtoken`) |
-| Password hashing | bcrypt (10 salt rounds) |
-| Environment config | dotenv |
-| CORS | cors |
-| Testing | Jest + ts-jest + fast-check |
+| Database | PostgreSQL — raw SQL via `pg` driver only |
+| Auth | `jsonwebtoken` (JWT) |
+| Password hashing | `bcrypt` (10 salt rounds) |
+| HTTP status codes | `http-status-codes` |
+| Environment config | `dotenv` |
+| CORS | `cors` |
+| Testing | Jest + ts-jest |
 
-No ORM, no query builder. All database access uses parameterized raw SQL queries.
+No ORM, no query builder, no SQL JOINs. All database access uses parameterized `pool.query()` calls.
 
 ---
 
-## Setup
+## Local Setup
 
 ### Prerequisites
 
-- Node.js 18+
+- Node.js 24+
 - PostgreSQL 14+
 
 ### Steps
 
-1. **Clone the repository**
+```bash
+# 1. Clone the repo
+git clone https://github.com/rushdv/devpulse.git
+cd devpulse
 
-   ```bash
-   git clone <repository-url>
-   cd devpulse
-   ```
+# 2. Install dependencies
+npm install
 
-2. **Install dependencies**
+# 3. Set up environment variables
+cp .env.example .env
+# Edit .env and fill in DATABASE_URL and JWT_SECRET
 
-   ```bash
-   npm install
-   ```
+# 4. Create tables
+psql -U <pg_user> -d <database> -f schema.sql
 
-3. **Configure environment variables**
+# 5. Start dev server
+npm run dev
+```
 
-   ```bash
-   cp .env.example .env
-   ```
-
-   Open `.env` and fill in your values (see [Environment Variables](#environment-variables) below).
-
-4. **Create the database and run the schema**
-
-   ```bash
-   psql -U <your_pg_user> -d <your_database> -f schema.sql
-   ```
-
-   Or connect to your PostgreSQL instance and run the contents of `schema.sql` directly.
-
-5. **Start the development server**
-
-   ```bash
-   npm run dev
-   ```
-
-   The server will start on the port defined in your `.env` (default: `3000`).
-
-### Other Scripts
+### Scripts
 
 | Command | Description |
 |---|---|
 | `npm run dev` | Start with `ts-node` (development) |
 | `npm run build` | Compile TypeScript to `dist/` |
-| `npm start` | Run compiled output from `dist/` |
-| `npm test` | Run the full test suite |
+| `npm start` | Run compiled output |
+| `npm test` | Run test suite |
 
 ---
 
 ## Environment Variables
 
-| Variable | Required | Description | Example |
-|---|---|---|---|
-| `DATABASE_URL` | Yes | PostgreSQL connection string | `postgresql://user:password@localhost:5432/devpulse` |
-| `JWT_SECRET` | Yes | Secret key used to sign and verify JWTs | `a-long-random-secret-string` |
-| `PORT` | No | Port the HTTP server listens on | `3000` (default) |
+| Variable | Required | Description |
+|---|---|---|
+| `DATABASE_URL` | ✅ | PostgreSQL connection string |
+| `JWT_SECRET` | ✅ | Secret key for signing JWTs |
+| `PORT` | ❌ | HTTP port (default: `3000`) |
 
-The application will throw an error on startup if `DATABASE_URL` is not set.
+---
+
+## Database Schema
+
+```sql
+CREATE TABLE IF NOT EXISTS users (
+  id          SERIAL PRIMARY KEY,
+  name        VARCHAR(255)        NOT NULL,
+  email       VARCHAR(255) UNIQUE NOT NULL,
+  password    TEXT                NOT NULL,
+  role        VARCHAR(20)         NOT NULL DEFAULT 'contributor'
+                CHECK (role IN ('contributor', 'maintainer')),
+  created_at  TIMESTAMPTZ         NOT NULL DEFAULT NOW(),
+  updated_at  TIMESTAMPTZ         NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS issues (
+  id           SERIAL PRIMARY KEY,
+  title        VARCHAR(150)  NOT NULL,
+  description  TEXT          NOT NULL,
+  type         VARCHAR(30)   NOT NULL CHECK (type IN ('bug', 'feature_request')),
+  status       VARCHAR(20)   NOT NULL DEFAULT 'open'
+                 CHECK (status IN ('open', 'in_progress', 'resolved')),
+  reporter_id  INTEGER       NOT NULL,
+  created_at   TIMESTAMPTZ   NOT NULL DEFAULT NOW(),
+  updated_at   TIMESTAMPTZ   NOT NULL DEFAULT NOW()
+);
+```
 
 ---
 
 ## Role Permissions
 
-DevPulse has two roles: **contributor** and **maintainer**.
-
 | Action | Contributor | Maintainer |
 |---|---|---|
 | Register / Login | ✅ | ✅ |
 | Create an issue | ✅ | ✅ |
-| List all issues | ✅ | ✅ |
-| Get a single issue | ✅ | ✅ |
+| View all issues | ✅ | ✅ |
 | Update own issue (status must be `open`) | ✅ | ✅ |
-| Update any issue | ❌ | ✅ |
+| Update any issue / change status | ❌ | ✅ |
 | Delete any issue | ❌ | ✅ |
 
 ---
 
-## API Reference
+## API Endpoints
 
-All responses follow a consistent JSON shape:
+Base URL: `/api`
 
-**Success**
+All responses follow this shape:
+
 ```json
 { "success": true, "message": "...", "data": { ... } }
+{ "success": false, "message": "...", "errors": "..." }
 ```
 
-**Error**
-```json
-{ "success": false, "message": "...", "errors": { ... } }
-```
-
-The `data` and `errors` fields are omitted when not applicable.
-
-### Authentication
-
-Protected routes require a JWT in the `Authorization` header. The token is sent as a raw value — no `Bearer` prefix:
+Protected routes require a JWT in the `Authorization` header (no `Bearer` prefix):
 
 ```
 Authorization: <your_jwt_token>
@@ -131,336 +146,120 @@ Authorization: <your_jwt_token>
 
 ---
 
-### POST /api/auth/signup
+### Auth
 
-Register a new user account.
+| Method | Endpoint | Access | Description |
+|---|---|---|---|
+| POST | `/api/auth/signup` | Public | Register a new user |
+| POST | `/api/auth/login` | Public | Login and receive JWT |
 
-**Auth required:** No
-
-**Request body**
-
-```json
-{
-  "name": "Alice",
-  "email": "alice@example.com",
-  "password": "secret123",
-  "role": "contributor"
-}
-```
-
-| Field | Type | Rules |
-|---|---|---|
-| `name` | string | Required |
-| `email` | string | Required, must be unique |
-| `password` | string | Required, stored as bcrypt hash |
-| `role` | string | Required, must be `contributor` or `maintainer` |
-
-**Response — 201 Created**
+#### POST /api/auth/signup
 
 ```json
+// Request
+{ "name": "John Doe", "email": "john@example.com", "password": "secret123", "role": "contributor" }
+
+// Response 201
 {
   "success": true,
   "message": "User registered successfully",
-  "data": {
-    "id": "uuid",
-    "name": "Alice",
-    "email": "alice@example.com",
-    "role": "contributor",
-    "created_at": "2024-01-01T00:00:00.000Z"
-  }
+  "data": { "id": 1, "name": "John Doe", "email": "john@example.com", "role": "contributor", "created_at": "...", "updated_at": "..." }
 }
 ```
 
-**Error responses**
-
-| Status | Condition |
-|---|---|
-| 400 | Missing required field |
-| 400 | Invalid `role` value |
-| 400 | Email already in use |
-
----
-
-### POST /api/auth/login
-
-Authenticate and receive a JWT.
-
-**Auth required:** No
-
-**Request body**
+#### POST /api/auth/login
 
 ```json
-{
-  "email": "alice@example.com",
-  "password": "secret123"
-}
-```
+// Request
+{ "email": "john@example.com", "password": "secret123" }
 
-**Response — 200 OK**
-
-```json
+// Response 200
 {
   "success": true,
   "message": "Login successful",
   "data": {
     "token": "<jwt>",
-    "user": {
-      "id": "uuid",
-      "name": "Alice",
-      "email": "alice@example.com",
-      "role": "contributor",
-      "created_at": "2024-01-01T00:00:00.000Z"
-    }
+    "user": { "id": 1, "name": "John Doe", "email": "john@example.com", "role": "contributor", "created_at": "...", "updated_at": "..." }
   }
 }
 ```
 
-**Error responses**
-
-| Status | Condition |
-|---|---|
-| 400 | Missing `email` or `password` |
-| 401 | Email not found or password incorrect |
-
 ---
 
-### GET /api/issues
+### Issues
 
-Retrieve all issues with optional filtering and sorting.
+| Method | Endpoint | Access | Description |
+|---|---|---|---|
+| GET | `/api/issues` | Public | List all issues (filterable) |
+| GET | `/api/issues/:id` | Public | Get a single issue |
+| POST | `/api/issues` | Authenticated | Create a new issue |
+| PATCH | `/api/issues/:id` | Authenticated | Update an issue |
+| DELETE | `/api/issues/:id` | Maintainer only | Delete an issue |
 
-**Auth required:** No
+#### GET /api/issues
 
-**Query parameters**
-
-| Parameter | Values | Description |
-|---|---|---|
-| `sort` | `newest` (default), `oldest` | Sort by `created_at` descending or ascending |
-| `type` | `bug`, `feature_request` | Filter by issue type |
-| `status` | `open`, `in_progress`, `resolved` | Filter by issue status |
-
-**Response — 200 OK**
+Query params: `sort` (`newest`\|`oldest`), `type` (`bug`\|`feature_request`), `status` (`open`\|`in_progress`\|`resolved`)
 
 ```json
+// Response 200
 {
   "success": true,
-  "message": "Issues retrieved successfully",
-  "data": [
-    {
-      "id": "uuid",
-      "title": "Login button broken",
-      "description": "The login button does not respond on mobile devices.",
-      "type": "bug",
-      "status": "open",
-      "created_at": "2024-01-01T00:00:00.000Z",
-      "updated_at": "2024-01-01T00:00:00.000Z",
-      "reporter": {
-        "id": "uuid",
-        "name": "Alice",
-        "role": "contributor"
-      }
-    }
-  ]
+  "data": [{
+    "id": 45, "title": "...", "description": "...", "type": "bug", "status": "open",
+    "reporter": { "id": 1, "name": "John Doe", "role": "contributor" },
+    "created_at": "...", "updated_at": "..."
+  }]
 }
 ```
 
-**Error responses**
-
-| Status | Condition |
-|---|---|
-| 400 | Invalid `type` or `status` query parameter value |
-
----
-
-### GET /api/issues/:id
-
-Retrieve a single issue by ID.
-
-**Auth required:** No
-
-**URL parameters**
-
-| Parameter | Description |
-|---|---|
-| `id` | UUID of the issue |
-
-**Response — 200 OK**
+#### POST /api/issues
 
 ```json
-{
-  "success": true,
-  "message": "Issue retrieved successfully",
-  "data": {
-    "id": "uuid",
-    "title": "Login button broken",
-    "description": "The login button does not respond on mobile devices.",
-    "type": "bug",
-    "status": "open",
-    "created_at": "2024-01-01T00:00:00.000Z",
-    "updated_at": "2024-01-01T00:00:00.000Z",
-    "reporter": {
-      "id": "uuid",
-      "name": "Alice",
-      "role": "contributor"
-    }
-  }
-}
-```
+// Request (Authorization header required)
+{ "title": "Bug title here", "description": "At least 20 characters long description", "type": "bug" }
 
-**Error responses**
-
-| Status | Condition |
-|---|---|
-| 404 | Issue not found |
-
----
-
-### POST /api/issues
-
-Create a new issue.
-
-**Auth required:** Yes (any authenticated user)
-
-**Request body**
-
-```json
-{
-  "title": "Login button broken",
-  "description": "The login button does not respond on mobile devices.",
-  "type": "bug"
-}
-```
-
-| Field | Type | Rules |
-|---|---|---|
-| `title` | string | Required, max 150 characters |
-| `description` | string | Required, min 20 characters |
-| `type` | string | Required, must be `bug` or `feature_request` |
-
-The `reporter_id` is set automatically from the authenticated user's JWT — it cannot be supplied in the request body.
-
-**Response — 201 Created**
-
-```json
+// Response 201
 {
   "success": true,
   "message": "Issue created successfully",
-  "data": {
-    "id": "uuid",
-    "title": "Login button broken",
-    "description": "The login button does not respond on mobile devices.",
-    "type": "bug",
-    "status": "open",
-    "reporter_id": "uuid",
-    "created_at": "2024-01-01T00:00:00.000Z",
-    "updated_at": "2024-01-01T00:00:00.000Z"
-  }
+  "data": { "id": 45, "title": "...", "description": "...", "type": "bug", "status": "open", "reporter_id": 1, "created_at": "...", "updated_at": "..." }
 }
 ```
 
-**Error responses**
+#### PATCH /api/issues/:id
 
-| Status | Condition |
-|---|---|
-| 400 | Missing required field |
-| 400 | `title` exceeds 150 characters |
-| 400 | `description` is shorter than 20 characters |
-| 400 | Invalid `type` value |
-| 401 | Missing or invalid JWT |
+- **Maintainer** — can update any issue (including `status`)
+- **Contributor** — can only update their own issue when `status` is `open`
+
+```json
+// Request body (all fields optional)
+{ "title": "Updated title", "description": "Updated description text here", "type": "feature_request" }
+
+// Response 200
+{ "success": true, "message": "Issue updated successfully", "data": { ... } }
+```
+
+#### DELETE /api/issues/:id
+
+```json
+// Response 200
+{ "success": true, "message": "Issue deleted successfully" }
+```
 
 ---
 
-### PATCH /api/issues/:id
+## HTTP Status Codes
 
-Update an existing issue's `title`, `description`, and/or `type`.
-
-**Auth required:** Yes
-
-**URL parameters**
-
-| Parameter | Description |
+| Code | Usage |
 |---|---|
-| `id` | UUID of the issue |
-
-**Request body** (all fields optional)
-
-```json
-{
-  "title": "Updated title",
-  "description": "Updated description with enough characters.",
-  "type": "feature_request"
-}
-```
-
-Only `title`, `description`, and `type` can be updated. Any `status` or `reporter_id` fields in the body are ignored.
-
-**Authorization rules**
-
-- **Maintainer** — can update any issue
-- **Contributor** — can only update their own issues, and only when the issue's `status` is `open`
-
-**Response — 200 OK**
-
-```json
-{
-  "success": true,
-  "message": "Issue updated successfully",
-  "data": {
-    "id": "uuid",
-    "title": "Updated title",
-    "description": "Updated description with enough characters.",
-    "type": "feature_request",
-    "status": "open",
-    "created_at": "2024-01-01T00:00:00.000Z",
-    "updated_at": "2024-01-02T00:00:00.000Z",
-    "reporter": {
-      "id": "uuid",
-      "name": "Alice",
-      "role": "contributor"
-    }
-  }
-}
-```
-
-**Error responses**
-
-| Status | Condition |
-|---|---|
-| 400 | Validation failure (title too long, description too short, invalid type) |
+| 200 | Successful GET, PATCH, DELETE |
+| 201 | Resource created |
+| 400 | Validation error / duplicate resource |
 | 401 | Missing or invalid JWT |
-| 403 | Contributor attempting to update another user's issue |
-| 404 | Issue not found |
-| 409 | Contributor attempting to update an issue that is not `open` |
-
----
-
-### DELETE /api/issues/:id
-
-Delete an issue. Maintainers only.
-
-**Auth required:** Yes (maintainer role only)
-
-**URL parameters**
-
-| Parameter | Description |
-|---|---|
-| `id` | UUID of the issue |
-
-**Response — 200 OK**
-
-```json
-{
-  "success": true,
-  "message": "Issue deleted successfully"
-}
-```
-
-**Error responses**
-
-| Status | Condition |
-|---|---|
-| 401 | Missing or invalid JWT |
-| 403 | Authenticated user is not a maintainer |
-| 404 | Issue not found |
+| 403 | Insufficient role/permissions |
+| 404 | Resource not found |
+| 409 | Business logic conflict |
+| 500 | Unexpected server error |
 
 ---
 
@@ -469,13 +268,13 @@ Delete an issue. Maintainers only.
 ```
 devpulse/
 ├── src/
-│   ├── app.ts                        # Express app setup and middleware
-│   ├── server.ts                     # Entry point — starts HTTP server
+│   ├── app.ts                    # Express app, middleware, global error handler
+│   ├── server.ts                 # HTTP server entry point
 │   ├── config/
-│   │   └── db.ts                     # pg.Pool initialization
+│   │   └── db.ts                 # pg.Pool initialization
 │   ├── middleware/
-│   │   ├── authenticate.ts           # JWT verification middleware
-│   │   └── authorize.ts              # Role-based access control middleware
+│   │   ├── authenticate.ts       # JWT verification
+│   │   └── authorize.ts          # Role-based access control
 │   ├── modules/
 │   │   ├── auth/
 │   │   │   ├── auth.controller.ts
@@ -486,10 +285,10 @@ devpulse/
 │   │       ├── issues.router.ts
 │   │       └── issues.service.ts
 │   └── utils/
-│       ├── asyncHandler.ts           # Wraps async handlers, forwards errors to next()
-│       └── response.ts               # sendSuccess() and sendError() helpers
-├── schema.sql                        # PostgreSQL table definitions
-├── .env.example                      # Environment variable template
+│       ├── asyncHandler.ts       # Wraps async handlers, forwards errors to next()
+│       └── response.ts           # sendSuccess() / sendError() helpers
+├── schema.sql                    # PostgreSQL table definitions
+├── .env.example                  # Environment variable template
 ├── package.json
 └── tsconfig.json
 ```
@@ -498,4 +297,4 @@ devpulse/
 
 ## License
 
-See [LICENSE](./LICENSE).
+[MIT](./LICENSE)
