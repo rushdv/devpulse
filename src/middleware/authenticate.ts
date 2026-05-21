@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
+import { StatusCodes } from 'http-status-codes';
 import { sendError } from '../utils/response';
 
 // Extend Express Request interface to include the authenticated user
@@ -21,7 +22,7 @@ export function authenticate(req: Request, res: Response, next: NextFunction): v
   const token = req.headers.authorization;
 
   if (!token) {
-    sendError(res, 401, 'Unauthorized');
+    sendError(res, StatusCodes.UNAUTHORIZED, 'Unauthorized');
     return;
   }
 
@@ -38,10 +39,9 @@ export function authenticate(req: Request, res: Response, next: NextFunction): v
       err instanceof jwt.JsonWebTokenError ||
       err instanceof jwt.TokenExpiredError
     ) {
-      sendError(res, 401, 'Unauthorized');
+      sendError(res, StatusCodes.UNAUTHORIZED, 'Unauthorized');
       return;
     }
-    // Re-throw unexpected errors so the global error handler can catch them
     throw err;
   }
 }

@@ -1,4 +1,5 @@
 import { pool } from '../../config/db';
+import { StatusCodes } from 'http-status-codes';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -63,17 +64,17 @@ export async function createIssue(
 ): Promise<IssueRow> {
   // Validate title
   if (!title || title.length > 150) {
-    throw makeError('title is required and must be at most 150 characters', 400);
+    throw makeError('title is required and must be at most 150 characters', StatusCodes.BAD_REQUEST);
   }
 
   // Validate description
   if (!description || description.length < 20) {
-    throw makeError('description is required and must be at least 20 characters', 400);
+    throw makeError('description is required and must be at least 20 characters', StatusCodes.BAD_REQUEST);
   }
 
   // Validate type
   if (!VALID_TYPES.includes(type as (typeof VALID_TYPES)[number])) {
-    throw makeError("type must be 'bug' or 'feature_request'", 400);
+    throw makeError("type must be 'bug' or 'feature_request'", StatusCodes.BAD_REQUEST);
   }
 
   // Verify reporter exists in application logic (no FK constraint in DB)
@@ -82,7 +83,7 @@ export async function createIssue(
     [reporterId]
   );
   if (reporterCheck.rows.length === 0) {
-    throw makeError('Reporter not found', 400);
+    throw makeError('Reporter not found', StatusCodes.BAD_REQUEST);
   }
 
   // Insert issue — status defaults to 'open' via DB default
@@ -109,12 +110,12 @@ export async function listIssues(
 ): Promise<IssueWithReporter[]> {
   // Validate type if provided
   if (type !== undefined && !VALID_TYPES.includes(type as (typeof VALID_TYPES)[number])) {
-    throw makeError("type must be 'bug' or 'feature_request'", 400);
+    throw makeError("type must be 'bug' or 'feature_request'", StatusCodes.BAD_REQUEST);
   }
 
   // Validate status if provided
   if (status !== undefined && !VALID_STATUSES.includes(status as (typeof VALID_STATUSES)[number])) {
-    throw makeError("status must be 'open', 'in_progress', or 'resolved'", 400);
+    throw makeError("status must be 'open', 'in_progress', or 'resolved'", StatusCodes.BAD_REQUEST);
   }
 
   // Build parameterized WHERE clause dynamically
@@ -179,7 +180,7 @@ export async function getIssueById(id: string): Promise<IssueWithReporter> {
   );
 
   if (issueResult.rows.length === 0) {
-    throw makeError('Issue not found', 404);
+    throw makeError('Issue not found', StatusCodes.NOT_FOUND);
   }
 
   const issue = issueResult.rows[0];
@@ -218,7 +219,7 @@ export async function updateIssue(
   );
 
   if (issueResult.rows.length === 0) {
-    throw makeError('Issue not found', 404);
+    throw makeError('Issue not found', StatusCodes.NOT_FOUND);
   }
 
   const issue = issueResult.rows[0];
@@ -226,10 +227,10 @@ export async function updateIssue(
   // Authorization check
   if (requesterRole === 'contributor') {
     if (String(issue.reporter_id) !== String(requesterId)) {
-      throw makeError('Forbidden', 403);
+      throw makeError('Forbidden', StatusCodes.FORBIDDEN);
     }
     if (issue.status !== 'open') {
-      throw makeError('Issue cannot be updated because it is not open', 409);
+      throw makeError('Issue cannot be updated because it is not open', StatusCodes.CONFLICT);
     }
   }
 
@@ -244,28 +245,28 @@ export async function updateIssue(
   // Validate status if maintainer is updating it
   if (safeUpdates.status !== undefined) {
     if (!VALID_STATUSES.includes(safeUpdates.status as (typeof VALID_STATUSES)[number])) {
-      throw makeError("status must be 'open', 'in_progress', or 'resolved'", 400);
+      throw makeError("status must be 'open', 'in_progress', or 'resolved'", StatusCodes.BAD_REQUEST);
     }
   }
 
   // Validate title if provided
   if (safeUpdates.title !== undefined) {
     if (!safeUpdates.title || (safeUpdates.title as string).length > 150) {
-      throw makeError('title must be at most 150 characters', 400);
+      throw makeError('title must be at most 150 characters', StatusCodes.BAD_REQUEST);
     }
   }
 
   // Validate description if provided
   if (safeUpdates.description !== undefined) {
     if (!safeUpdates.description || (safeUpdates.description as string).length < 20) {
-      throw makeError('description must be at least 20 characters', 400);
+      throw makeError('description must be at least 20 characters', StatusCodes.BAD_REQUEST);
     }
   }
 
   // Validate type if provided
   if (safeUpdates.type !== undefined) {
     if (!VALID_TYPES.includes(safeUpdates.type as (typeof VALID_TYPES)[number])) {
-      throw makeError("type must be 'bug' or 'feature_request'", 400);
+      throw makeError("type must be 'bug' or 'feature_request'", StatusCodes.BAD_REQUEST);
     }
   }
 
@@ -323,7 +324,7 @@ export async function deleteIssue(
   );
 
   if (issueResult.rows.length === 0) {
-    throw makeError('Issue not found', 404);
+    throw makeError('Issue not found', StatusCodes.NOT_FOUND);
   }
 
   await pool.query('DELETE FROM issues WHERE id = $1', [issueId]);

@@ -1,4 +1,5 @@
 import { Request, Response } from 'express';
+import { StatusCodes } from 'http-status-codes';
 import * as authService from './auth.service';
 import { sendSuccess, sendError } from '../../utils/response';
 
@@ -11,9 +12,9 @@ export async function signup(req: Request, res: Response): Promise<void> {
 
   try {
     const user = await authService.signup(name, email, password, role);
-    sendSuccess(res, 201, 'User registered successfully', user);
+    sendSuccess(res, StatusCodes.CREATED, 'User registered successfully', user);
   } catch (err: unknown) {
-    const statusCode = (err as { statusCode?: number }).statusCode ?? 500;
+    const statusCode = (err as { statusCode?: number }).statusCode ?? StatusCodes.INTERNAL_SERVER_ERROR;
     const message =
       err instanceof Error ? err.message : 'An unexpected error occurred';
     sendError(res, statusCode, message);
@@ -29,9 +30,9 @@ export async function login(req: Request, res: Response): Promise<void> {
 
   try {
     const { token, user } = await authService.login(email, password);
-    sendSuccess(res, 200, 'Login successful', { token, user });
+    sendSuccess(res, StatusCodes.OK, 'Login successful', { token, user });
   } catch (err: unknown) {
-    const statusCode = (err as { statusCode?: number }).statusCode ?? 500;
+    const statusCode = (err as { statusCode?: number }).statusCode ?? StatusCodes.INTERNAL_SERVER_ERROR;
     const message =
       err instanceof Error ? err.message : 'An unexpected error occurred';
     sendError(res, statusCode, message);

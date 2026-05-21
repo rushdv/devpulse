@@ -1,6 +1,7 @@
 import { pool } from '../../config/db';
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
+import { StatusCodes } from 'http-status-codes';
 
 interface SafeUser {
   id: number;
@@ -34,12 +35,12 @@ export async function signup(
 ): Promise<SafeUser> {
   // Validate all fields are present and non-empty
   if (!name || !email || !password || !role) {
-    throw makeError('name, email, password, and role are all required', 400);
+    throw makeError('name, email, password, and role are all required', StatusCodes.BAD_REQUEST);
   }
 
   // Validate role
   if (role !== 'contributor' && role !== 'maintainer') {
-    throw makeError("role must be 'contributor' or 'maintainer'", 400);
+    throw makeError("role must be 'contributor' or 'maintainer'", StatusCodes.BAD_REQUEST);
   }
 
   // Check for duplicate email
@@ -48,7 +49,7 @@ export async function signup(
     [email]
   );
   if (existing.rows.length > 0) {
-    throw makeError('Email already in use', 400);
+    throw makeError('Email already in use', StatusCodes.BAD_REQUEST);
   }
 
   // Hash password with 10 salt rounds
@@ -72,7 +73,7 @@ export async function login(
 ): Promise<LoginResult> {
   // Validate fields present
   if (!email || !password) {
-    throw makeError('email and password are required', 400);
+    throw makeError('email and password are required', StatusCodes.BAD_REQUEST);
   }
 
   // Find user by email (include password for comparison)
@@ -87,7 +88,7 @@ export async function login(
   }>('SELECT id, name, email, password, role, created_at, updated_at FROM users WHERE email = $1', [email]);
 
   if (result.rows.length === 0) {
-    throw makeError('Invalid credentials', 401);
+    throw makeError('Invalid credentials', StatusCodes.UNAUTHORIZED);
   }
 
   const user = result.rows[0];
@@ -95,7 +96,7 @@ export async function login(
   // Compare password
   const match = await bcrypt.compare(password, user.password);
   if (!match) {
-    throw makeError('Invalid credentials', 401);
+    throw makeError('Invalid credentials', StatusCodes.UNAUTHORIZED);
   }
 
   // Sign JWT with id, name, role

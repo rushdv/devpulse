@@ -1,4 +1,5 @@
 import { Request, Response } from 'express';
+import { StatusCodes } from 'http-status-codes';
 import * as issuesService from './issues.service';
 import { sendSuccess, sendError } from '../../utils/response';
 
@@ -16,9 +17,9 @@ export async function createIssue(req: Request, res: Response): Promise<void> {
 
   try {
     const issue = await issuesService.createIssue(reporterId, title, description, type);
-    sendSuccess(res, 201, 'Issue created successfully', issue);
+    sendSuccess(res, StatusCodes.CREATED, 'Issue created successfully', issue);
   } catch (err: unknown) {
-    const statusCode = (err as { statusCode?: number }).statusCode ?? 500;
+    const statusCode = (err as { statusCode?: number }).statusCode ?? StatusCodes.INTERNAL_SERVER_ERROR;
     const message = err instanceof Error ? err.message : 'An unexpected error occurred';
     sendError(res, statusCode, message);
   }
@@ -37,9 +38,9 @@ export async function listIssues(req: Request, res: Response): Promise<void> {
 
   try {
     const issues = await issuesService.listIssues(sort, type, status);
-    sendSuccess(res, 200, 'Issues retrieved successfully', issues);
+    sendSuccess(res, StatusCodes.OK, 'Issues retrieved successfully', issues);
   } catch (err: unknown) {
-    const statusCode = (err as { statusCode?: number }).statusCode ?? 500;
+    const statusCode = (err as { statusCode?: number }).statusCode ?? StatusCodes.INTERNAL_SERVER_ERROR;
     const message = err instanceof Error ? err.message : 'An unexpected error occurred';
     sendError(res, statusCode, message);
   }
@@ -54,9 +55,9 @@ export async function getIssueById(req: Request, res: Response): Promise<void> {
 
   try {
     const issue = await issuesService.getIssueById(id);
-    sendSuccess(res, 200, 'Issue retrieved successfully', issue);
+    sendSuccess(res, StatusCodes.OK, 'Issue retrieved successfully', issue);
   } catch (err: unknown) {
-    const statusCode = (err as { statusCode?: number }).statusCode ?? 500;
+    const statusCode = (err as { statusCode?: number }).statusCode ?? StatusCodes.INTERNAL_SERVER_ERROR;
     const message = err instanceof Error ? err.message : 'An unexpected error occurred';
     sendError(res, statusCode, message);
   }
@@ -65,7 +66,7 @@ export async function getIssueById(req: Request, res: Response): Promise<void> {
 /**
  * PATCH /api/issues/:id
  * Updates an issue's title, description, and/or type.
- * Maintainers can also update status.
+ * Maintainers can also update status independently.
  * Requires authentication.
  */
 export async function updateIssue(req: Request, res: Response): Promise<void> {
@@ -86,9 +87,9 @@ export async function updateIssue(req: Request, res: Response): Promise<void> {
       type,
       status,
     });
-    sendSuccess(res, 200, 'Issue updated successfully', issue);
+    sendSuccess(res, StatusCodes.OK, 'Issue updated successfully', issue);
   } catch (err: unknown) {
-    const statusCode = (err as { statusCode?: number }).statusCode ?? 500;
+    const statusCode = (err as { statusCode?: number }).statusCode ?? StatusCodes.INTERNAL_SERVER_ERROR;
     const message = err instanceof Error ? err.message : 'An unexpected error occurred';
     sendError(res, statusCode, message);
   }
@@ -103,9 +104,9 @@ export async function deleteIssue(req: Request, res: Response): Promise<void> {
 
   try {
     await issuesService.deleteIssue(id);
-    sendSuccess(res, 200, 'Issue deleted successfully');
+    sendSuccess(res, StatusCodes.OK, 'Issue deleted successfully');
   } catch (err: unknown) {
-    const statusCode = (err as { statusCode?: number }).statusCode ?? 500;
+    const statusCode = (err as { statusCode?: number }).statusCode ?? StatusCodes.INTERNAL_SERVER_ERROR;
     const message = err instanceof Error ? err.message : 'An unexpected error occurred';
     sendError(res, statusCode, message);
   }
