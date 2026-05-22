@@ -2,7 +2,7 @@
 
 > Internal tech issue & feature tracker for software teams — report bugs, suggest features, and coordinate resolutions.
 
-**Live URL:** `https://your-deployment-url.onrender.com`
+**Live URL:** 
 
 ---
 
