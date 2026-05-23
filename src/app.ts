@@ -7,12 +7,10 @@ import { sendError } from './utils/response';
 
 const app = express();
 
-// Middleware
 app.use(cors());
 app.use(express.json());
 
-// Routes
-app.get('/', (req: Request, res: Response) => {
+app.get('/', (_req: Request, res: Response) => {
   res.json({
     success: true,
     message: 'DevPulse API is running',
@@ -27,8 +25,7 @@ app.get('/', (req: Request, res: Response) => {
 app.use('/api/auth', authRouter);
 app.use('/api/issues', issuesRouter);
 
-// Global error handler — must have 4 parameters for Express to recognize it as an error handler
-app.use((err: Error, req: Request, res: Response, next: NextFunction) => {
+app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
   console.error(err);
   sendError(res, StatusCodes.INTERNAL_SERVER_ERROR, 'Internal server error');
 });
