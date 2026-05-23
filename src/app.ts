@@ -12,6 +12,18 @@ app.use(cors());
 app.use(express.json());
 
 // Routes
+app.get('/', (req: Request, res: Response) => {
+  res.json({
+    success: true,
+    message: 'DevPulse API is running',
+    version: '1.0.0',
+    endpoints: {
+      auth: '/api/auth/signup, /api/auth/login',
+      issues: '/api/issues',
+    },
+  });
+});
+
 app.use('/api/auth', authRouter);
 app.use('/api/issues', issuesRouter);
 
